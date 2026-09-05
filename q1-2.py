@@ -17,7 +17,8 @@ def ftl():
         else:
             ftl_loss += L_ODD[I_t]
             cumul_losses += L_ODD
-    return ftl_loss
+    regret = ftl_loss - min(cumul_losses)
+    return regret
 
 def exp_weights():
     cumul_losses = np.zeros(K)
@@ -35,5 +36,10 @@ def exp_weights():
         else:
             exp_weight_loss += L_ODD[I_t]
             cumul_losses += L_ODD
-        
-    return 
+
+        max_j = eta*max(cumul_losses)
+        common_denom = max_j - np.log(np.sum(np.exp(-eta*cumul_losses+max_j)))
+        p_arr = np.exp(-eta * cumul_losses + common_denom)
+
+    regret = exp_weight_loss - min(cumul_losses)
+    return regret

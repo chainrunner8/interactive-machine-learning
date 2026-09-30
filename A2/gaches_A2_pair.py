@@ -1,9 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import itertools
+
 
 K = 2
 T = 10_000
-M = 10
+M = 20
 PHI = 4
 THETA = 200
 
@@ -19,7 +21,7 @@ def sample_loss(rng, q):
 # perform bayesian updating of p_hat.
 # when the loss is not observe: take 2*p_hat - 1
 
-def b_ada_hedge(rng, q1, q2):
+def b_ada_hedge(rng, q1, q2, theta, phi):
     '''returns the loss of the algo'''
     smallest = np.argmin([q1,q2])
 
@@ -39,7 +41,7 @@ def b_ada_hedge(rng, q1, q2):
     # here A_t is Beta_t from the assignment
     A_t = 2*np.log(K)
     for t in range(T):
-        eta = np.log(K)/(A_t + np.exp(-t/THETA + PHI))
+        eta = np.log(K)/(A_t + np.exp(-t/theta + phi))
         eta_history[t] = eta
 
         I_t = rng.choice(experts, size=1, p=p_exp).item()
@@ -134,21 +136,31 @@ def plot_lr_var(pair, all_var_histories, all_eta_histories):
 if __name__ == '__main__':
     seed = 1234
     rng = np.random.default_rng(seed=seed)
-    pairs = [[.1,.25]]
+    pairs = [
+        [.1,.25]
+        , [.3,.25]
+        ,[.9,.55]
+        ,[.6,.95]
+        , [.5,.5+1/10_000]
+        , [.5,.5-1/10_000]
+    ]
+    pair=pairs[5]
     print(f"{'pair':<{17}} {'avg regret':>{10}} {'sd':>{10}} {'q_hats':>{16}}",flush=True)
-    summed_avg_regret = 0
 
-    pair=pairs[0]
-    regrets = np.zeros(M)
-    q_hats = np.zeros((M,2))
-    eta_histories = np.zeros((M,T))
-    var_histories = np.zeros((M,T,2))
-    for i in range(M):
-        regrets[i], q_hats[i], eta_histories[i], var_histories[i] = b_ada_hedge(rng, q1=pair[0], q2=pair[1])
-    avg_regret = np.average(regrets)
-    summed_avg_regret += avg_regret
-    sd_regret = np.std(regrets,ddof=1)
-    print(f"{str(pair):<{17}} {avg_regret:>{10}.3f}  {sd_regret:>{10}.3f} {str(np.average(q_hats, axis=0).round(3)):>{16}}",flush=True)
-    print('summed average regret:', round(summed_avg_regret,3))
 
-    plot_lr_var(pairs, var_histories, eta_histories)
+    thetas = map(float, np.linspace(start=40, stop=60, num=5).round(3))
+    phis = map(float, np.linspace(start=.5, stop=1.5, num=7).round(3))
+    combis = list(itertools.product(thetas, phis))
+    for comb in combis:
+        regrets = np.zeros(M)
+        q_hats = np.zeros((M,2))
+        # eta_histories = np.zeros((M,T))
+        # var_histories = np.zeros((M,T,2))
+        for i in range(M):
+            regrets[i], q_hats[i], _, _ = b_ada_hedge(rng, q1=pair[0], q2=pair[1], theta=comb[0], phi=comb[1])
+        avg_regret = np.average(regrets)
+        sd_regret = np.std(regrets,ddof=1)
+        print(f"{str(comb):<{17}} {avg_regret:>{10}.3f}  {sd_regret:>{10}.3f} {str(np.average(q_hats, axis=0).round(3)):>{16}}",flush=True)
+    # print('summed average regret:', round(summed_avg_regret,3))
+
+    # plot_lr_var(pairs, var_histories, eta_histories)

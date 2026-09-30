@@ -4,8 +4,6 @@ import matplotlib.pyplot as plt
 K = 2
 T = 10_000
 M = 20
-PHI = 4
-THETA = 200
 
 def sample_loss(rng, q):
     success = rng.binomial(n=1, p=q, size=1).item()
@@ -19,7 +17,7 @@ def sample_loss(rng, q):
 # perform bayesian updating of q_hat.
 # when the loss is not observe: take 2*q_hat - 1
 
-def b_ada_hedge(rng, q1, q2):
+def b_ada_hedge(rng, q1, q2, theta, phi):
     '''returns the loss of the algo'''
     smallest = np.argmin([q1,q2])
 
@@ -40,7 +38,7 @@ def b_ada_hedge(rng, q1, q2):
     # here A_t is Beta_t from the assignment
     A_t = 2*np.log(K)
     for t in range(T):
-        eta = np.log(K)/(A_t + np.exp(-t/THETA + PHI))
+        eta = np.log(K)/(A_t + np.exp(-t/theta + phi))
         eta_history[t] = eta
 
         I_t = rng.choice(experts, size=1, p=p_exp).item()
@@ -134,7 +132,7 @@ def plot_lr_var(pairs, all_var_histories, all_eta_histories):
     plt.show()
 
 if __name__ == '__main__':
-    seed = 1234
+    seed = 0
     rng = np.random.default_rng(seed=seed)
     pairs = [
         [.1,.25]
@@ -144,18 +142,36 @@ if __name__ == '__main__':
         , [.5,.5+1/10_000]
         , [.5,.5-1/10_000]
     ]
+    hyperparams = [
+        (167, 2)
+        , (206, 3.8)
+        , (5, 0.16)
+        , (41.25, 0.3)
+        , (40, .1)
+        , (5, .1)
+    ]
+    trials = {i: {'pair':pair, 'params':hyperparams[i]} for i,pair in enumerate(pairs)}
+
     print(f"{'pair':<{17}} {'avg regret':>{10}} {'sd':>{10}} {'q_hats':>{16}}",flush=True)
     summed_avg_regret = 0
     all_eta_histories =[]
     all_var_histories =[]
     
-    for pair in pairs:
+    for trial in trials.values():
         regrets = np.zeros(M)
         q_hats = np.zeros((M,2))
         eta_histories = np.zeros((M,T))
         var_histories = np.zeros((M,T,2))
+        pair = trial['pair']
+        params =trial['params']
         for i in range(M):
-            regrets[i], q_hats[i], eta_histories[i], var_histories[i] = b_ada_hedge(rng, q1=pair[0], q2=pair[1])
+            regrets[i], q_hats[i], eta_histories[i], var_histories[i] = b_ada_hedge(
+                rng
+                , q1=pair[0]
+                , q2=pair[1]
+                , theta=params[0]
+                , phi=params[1]
+                )
         all_eta_histories.append(eta_histories)
         all_var_histories.append(var_histories)
         avg_regret = np.average(regrets)

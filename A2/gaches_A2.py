@@ -45,23 +45,31 @@ def b_ada_hedge(rng, q1, q2, theta, phi):
 
         sampled_losses = [sample_loss(rng, q1), sample_loss(rng, q2)]
 
+        # we suffer the sampled loss for the chosen arm
+        # and impute for the other arm
         if I_t == 0:
             losses = [sampled_losses[0], 2*q_hats[1]-1]
         else:
             losses = [2*q_hats[0]-1, sampled_losses[1]]
+
+        # next we update the estimate of q for the I_t arm
         if sampled_losses[I_t] == 1: alphas[I_t]+=1
         else: betas[I_t]+=1
-        q_hats[I_t] = alphas[I_t]/(alphas[I_t]+betas[I_t]) #bayesian updating of p
+        q_hats[I_t] = alphas[I_t]/(alphas[I_t]+betas[I_t]) #bayesian updating of q hat
 
+        #the below chunk just collects data for viz
         for j in range(K):
             alpha_beta = alphas[j]+betas[j]
-            # this is the variance of the beta distro
+            # this is the variance of the beta distro:
             var_history[t,j] = (alphas[j]*betas[j]/(alpha_beta**2*(alpha_beta+1)))
 
         b_ada_regret += sampled_losses[I_t] - sampled_losses[smallest]
         cumul_losses += losses
 
-        # below i changed how i compute p_t because of overflow errors
+        # below i changed the way i compute p_t but the result is the same
+        # i still ran into overflow errors with the log sum exp trick we used in A1
+        # the probas are the same, i just rescale them with -max(log_weights)
+        # that way the exponent are strongly shrunk
         log_weights = -eta*cumul_losses
         log_weights -= np.max(log_weights)
         p_exp = np.exp(log_weights)
@@ -72,6 +80,12 @@ def b_ada_hedge(rng, q1, q2, theta, phi):
     return b_ada_regret, q_hats, eta_history, var_history
 
 def plot_lr_var(pairs, all_var_histories, all_eta_histories):
+    '''
+    outputs two figures each with 6 subplots
+    for each pair:
+    - first figure shows the average variance (solid line) +-1 sd (shaded regions) across the 20 trials
+    - second figure shows the average lr (solid line) +-1 sd (shaded regions) across the 20 trials
+    '''
     fig_eta, axes_eta = plt.subplots(2, 3, figsize=(15, 8))
     fig_var, axes_var = plt.subplots(2, 3, figsize=(15, 8))
 
@@ -125,14 +139,14 @@ def plot_lr_var(pairs, all_var_histories, all_eta_histories):
 
     fig_eta.suptitle("Evolution of learning rate", fontsize=16)
     fig_var.suptitle("Evolution of Beta posterior variance", fontsize=16)
-
     fig_eta.tight_layout()
     fig_var.tight_layout()
-
     plt.show()
 
 if __name__ == '__main__':
-    seed = 0
+    import itertools
+    
+    seed = 2026
     rng = np.random.default_rng(seed=seed)
     pairs = [
         [.1,.25]
@@ -142,42 +156,34 @@ if __name__ == '__main__':
         , [.5,.5+1/10_000]
         , [.5,.5-1/10_000]
     ]
-    hyperparams = [
-        (167, 2)
-        , (206, 3.8)
-        , (5, 0.16)
-        , (41.25, 0.3)
-        , (40, .1)
-        , (5, .1)
-    ]
-    trials = {i: {'pair':pair, 'params':hyperparams[i]} for i,pair in enumerate(pairs)}
+    thetas = map(float, np.linspace(start=10, stop=300, num=10).round(3))
+    phis = map(float, np.linspace(start=.1, stop=5, num=10).round(3))
+    combis = list(itertools.product(thetas, phis))
+    print(f"{'hypers':<{17}} {'sum avg regret':>{14}} {'sd':>{10}}",flush=True)
 
-    print(f"{'pair':<{17}} {'avg regret':>{10}} {'sd':>{10}} {'q_hats':>{16}}",flush=True)
-    summed_avg_regret = 0
-    all_eta_histories =[]
-    all_var_histories =[]
-    
-    for trial in trials.values():
-        regrets = np.zeros(M)
-        q_hats = np.zeros((M,2))
-        eta_histories = np.zeros((M,T))
-        var_histories = np.zeros((M,T,2))
-        pair = trial['pair']
-        params =trial['params']
-        for i in range(M):
-            regrets[i], q_hats[i], eta_histories[i], var_histories[i] = b_ada_hedge(
-                rng
-                , q1=pair[0]
-                , q2=pair[1]
-                , theta=params[0]
-                , phi=params[1]
-                )
-        all_eta_histories.append(eta_histories)
-        all_var_histories.append(var_histories)
-        avg_regret = np.average(regrets)
-        summed_avg_regret += avg_regret
-        sd_regret = np.std(regrets,ddof=1)
-        print(f"{str(pair):<{17}} {avg_regret:>{10}.3f}  {sd_regret:>{10}.3f} {str(np.average(q_hats, axis=0).round(3)):>{16}}",flush=True)
-    print('summed average regret:', round(summed_avg_regret,3))
-
-    plot_lr_var(pairs, all_var_histories, all_eta_histories)
+    for comb in combis:
+        summed_avg_regret = 0
+        # all_eta_histories =[]
+        # all_var_histories =[]
+        var = 0
+        for pair in pairs:
+            regrets = np.zeros(M)
+            # q_hats = np.zeros((M,2))
+            # eta_histories = np.zeros((M,T))
+            # var_histories = np.zeros((M,T,2))
+            for i in range(M):
+                regrets[i], _, _,_ = b_ada_hedge(
+                    rng
+                    , q1=pair[0]
+                    , q2=pair[1]
+                    , theta=comb[0]
+                    , phi=comb[1]
+                    )
+            # all_eta_histories.append(eta_histories)
+            # all_var_histories.append(var_histories)
+            avg_regret = np.average(regrets)
+            summed_avg_regret += avg_regret
+            var_regret = np.var(regrets,ddof=1)
+            var += var_regret
+        print(f"{str(comb):<{17}} {summed_avg_regret:>{14}.3f} {np.sqrt(var):>{10}.3f}",flush=True)
+    # plot_lr_var(pairs, all_var_histories, all_eta_histories)

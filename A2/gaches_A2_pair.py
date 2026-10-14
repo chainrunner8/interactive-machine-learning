@@ -5,9 +5,7 @@ import itertools
 
 K = 2
 T = 10_000
-M = 20
-PHI = 4
-THETA = 200
+M = 10
 
 def sample_loss(rng, q):
     success = rng.binomial(n=1, p=q, size=1).item()
@@ -144,23 +142,23 @@ if __name__ == '__main__':
         , [.5,.5+1/10_000]
         , [.5,.5-1/10_000]
     ]
-    pair=pairs[5]
+    pair=pairs[1]
     print(f"{'pair':<{17}} {'avg regret':>{10}} {'sd':>{10}} {'q_hats':>{16}}",flush=True)
 
 
-    thetas = map(float, np.linspace(start=40, stop=60, num=5).round(3))
-    phis = map(float, np.linspace(start=.5, stop=1.5, num=7).round(3))
-    combis = list(itertools.product(thetas, phis))
-    for comb in combis:
-        regrets = np.zeros(M)
-        q_hats = np.zeros((M,2))
-        # eta_histories = np.zeros((M,T))
-        # var_histories = np.zeros((M,T,2))
-        for i in range(M):
-            regrets[i], q_hats[i], _, _ = b_ada_hedge(rng, q1=pair[0], q2=pair[1], theta=comb[0], phi=comb[1])
-        avg_regret = np.average(regrets)
-        sd_regret = np.std(regrets,ddof=1)
-        print(f"{str(comb):<{17}} {avg_regret:>{10}.3f}  {sd_regret:>{10}.3f} {str(np.average(q_hats, axis=0).round(3)):>{16}}",flush=True)
+    # thetas = map(float, np.linspace(start=40, stop=60, num=5).round(3))
+    # phis = map(float, np.linspace(start=.5, stop=1.5, num=7).round(3))
+    # combis = list(itertools.product(thetas, phis))
+    # for comb in combis:
+    regrets = np.zeros(M)
+    q_hats = np.zeros((M,2))
+    eta_histories = np.zeros((M,T))
+    var_histories = np.zeros((M,T,2))
+    for i in range(M):
+        regrets[i], q_hats[i], eta_histories[i], var_histories[i] = b_ada_hedge(rng, q1=pair[0], q2=pair[1], theta=206, phi=3.8)
+    avg_regret = np.average(regrets)
+    sd_regret = np.std(regrets,ddof=1)
+    print(f"{str(pair):<{17}} {avg_regret:>{10}.3f}  {sd_regret:>{10}.3f} {str(np.average(q_hats, axis=0).round(3)):>{16}}",flush=True)
     # print('summed average regret:', round(summed_avg_regret,3))
 
-    # plot_lr_var(pairs, var_histories, eta_histories)
+    plot_lr_var(pair, var_histories, eta_histories)
